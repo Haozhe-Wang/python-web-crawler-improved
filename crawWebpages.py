@@ -13,6 +13,11 @@ class DownloadPage(object):
         self._contents=[]
         self._saves={}
 
+        self._retrive_filetypes=[]
+        self._retrive_images=True
+        self._retrive_css=True
+        self._remove_script=False
+
     def setUrl(self,url):
         self._url=url
     def getUrl(self):
@@ -21,6 +26,20 @@ class DownloadPage(object):
         return self._content
     def getSaves(self):
         return self._saves
+    def setFiletypes(self,filetype):
+        self._retrive_filetypes.append(str(filetype))
+    def setImageRetrivingTrue(self):
+        self._retrive_images=True
+    def setImageRetrivingFalse(self):
+        self._retrive_images=False
+    def setCssRetrivingTrue(self):
+        self._retrive_css=True
+    def setCssRetrivingFalse(self):
+        self._retrive_css=False
+    def setScriptRemovalTrue(self):
+        self._remove_script=True
+    def setScriptRemovalFalse(self):
+        self._remove_script=False
     #add the current page to the opened page list
     def _savePage(self):
         if self._content != '':
@@ -118,7 +137,23 @@ class DownloadPage(object):
 
         return readed
 
-    def downloadFile(self,url,filename):
+    def downloadFiles(self):
+        downloads={}
+        for extension in self._retrive_filetypes:
+            downloaded=0
+            total=0
+            pattern=re.compile(br"((https?):((//)|(\\\\))+[\w\d:#@%/;$()~_?\+-=\\\.&]*/([a-zA-Z0-9\r_-]+\."+bytes(extension,'ascii')+b")[?=a-zA-Z0-9_]*)")
+            files = pattern.findall(self._readed)
+            for file in files:
+                try:
+                    self.download(file[0].decode('ascii'),file[-1].decode('ascii'))
+                    downloaded += 1
+                finally:
+                    total+=1
+            downloads[extension]=[downloaded,total]
+        return downloads
+
+    def download(self,url,filename):
         testfile = request.URLopener()
         testfile.retrieve(url, filename)
 
@@ -169,10 +204,15 @@ class urlError(Exception):
 
 if __name__=='__main__':
 
-    down=DownloadPage('https://www.51test.net/show/9169567.html')
+    down=DownloadPage('http://www.cs.ucc.ie/~kieran/cs1106/home/html/cs1106_home.html')
     down.urlopen()
     down.savePage()
     down.saveAll()
+
+    #download pdf files from the page
+    # down.setFiletypes('pdf')
+    # down.downloadFiles()
+
     '''down.urlopen()
 
     down.url='https://cs1.ucc.ie/~hw7/table.html'
