@@ -6,6 +6,7 @@ import http.cookiejar
 
 class DownloadPage(object):
     def __init__(self,url):
+        # This will be storing binary content
         self._readed=None
         self._url=url
         self._content=''
@@ -26,20 +27,32 @@ class DownloadPage(object):
         return self._content
     def getSaves(self):
         return self._saves
+
+    #add file types
     def setFiletypes(self,filetype):
         self._retrive_filetypes.append(str(filetype))
+
+    #set to download all images
     def setImageRetrivingTrue(self):
         self._retrive_images=True
+    # set not to download all images
     def setImageRetrivingFalse(self):
         self._retrive_images=False
+
+    # set to download all stylesheets
     def setCssRetrivingTrue(self):
         self._retrive_css=True
+    # set not to download all stylesheets
     def setCssRetrivingFalse(self):
         self._retrive_css=False
+
+    # set to remove all javascripts
     def setScriptRemovalTrue(self):
         self._remove_script=True
+    # set not to remove all javascripts
     def setScriptRemovalFalse(self):
         self._remove_script=False
+    
     #add the current page to the opened page list
     def _savePage(self):
         if self._content != '':
@@ -59,16 +72,18 @@ class DownloadPage(object):
                 i+=1
             # self._saves[name]=self._url
             self._saves[name] = self._readed
+    #go to next page that has been fetched
     def goNextPage(self):
         if not self._contentsPointer==len(self._contents)-1:
             self._contentsPointer+=1
             self._content=self._contents[self._contentsPointer]
+    #go back to the last page that has been fetched
     def goLastPage(self):
         if not self._contentsPointer==0:
             self._contentsPointer-=1
             self._content=self._contents[self._contentsPointer]
     def _getEncode(self,page):
-        pattern=re.compile(b'<meta[^>]+charset\s*=\s*"*([^>\s"]+)[\s"][^>]*>')
+        pattern=re.compile(b'<meta[^>]+charset[\s\n]*=[\s\n]*"*([^>\s\n"]+)[\s\n"][^>]*>')
         match=pattern.search(page)
         try:
             return match.group(1).decode('ascii')
@@ -93,7 +108,10 @@ class DownloadPage(object):
             f = open(name + '.html', 'wb')
             f.write(content)
             f.close()
+            self.downloadAllToFolder(name)
 
+    '''
+    #convert every links to absolute url with http prefixed
     def refineLinks(self,content):
         pattern=re.compile('(<[^>]+(href|src)\s*=\s*"\s*)(//[^>"]+)(\s*"[^>]*>)')
         content=pattern.sub(r'\1http:\3\4',content)
@@ -114,15 +132,16 @@ class DownloadPage(object):
         content = pattern.sub(repalce, content)
 
         return content
+    '''
 
     def refineBinaryLinks(self,readed):
-        pattern = re.compile(b'(<[^>]+(href|src)\s*=\s*"\s*)(//[^>"]+)(\s*"[^>]*>)')
+        pattern = re.compile(b'(<[^>]+(href|src)[\s\n]*=[\s\n]*"[\s\n]*)(//[^>"]+)([\s\n]*"[^>]*>)')
         readed = pattern.sub(br'\1http:\3\4', readed)
-        pattern = re.compile(b'(<[^>]+(href|src)\s*=\s*"\s*)(/[^>"]+)(\s*"[^>]*>)')
+        pattern = re.compile(b'(<[^>]+(href|src)[\s\n]*=[\s\n]*"[\s\n]*)(/[^>"]+)([\s\n]*"[^>]*>)')
         path = self._url.split('/')
         domain = '/'.join(path[:3])
         readed = pattern.sub(br'\1' + bytes(domain,'ascii') + br'\3\4', readed)
-        pattern = re.compile(b'(<[^>]+(href|src)\s*=\s*"\s*)((?!(http:|https:|ftp:))(\.\./)*[^>"]+)(\s*"[^>]*>)')
+        pattern = re.compile(b'(<[^>]+(href|src)[\s\n]*=[\s\n]*"[\s\n]*)((?!(http:|https:|ftp:))(\.\./)*[^>"]+)([\s\n]*"[^>]*>)')
 
         def repalce(match):
             relative_url = match.group(3).split(b'/')
@@ -136,13 +155,31 @@ class DownloadPage(object):
         readed = pattern.sub(repalce, readed)
 
         return readed
+    def changeDirectory(self,path):
+        os.chdir(path)
+    def downloadAllToFolder(self,folderName):
+        current = os.getcwd()
+        folder = os.path.join(current, folderName)
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        os.chdir(folder)
+        self.downloadFiles()
+        self.downloadCss()
+        self.downloadImages()
+        os.chdir(current)
+    def downloadCss(self):
+        pass
 
+    def downloadImages(self):
+        pass
+
+    #download every file which are given by the file extensions
     def downloadFiles(self):
         downloads={}
         for extension in self._retrive_filetypes:
             downloaded=0
             total=0
-            pattern=re.compile(br"((https?):((//)|(\\\\))+[\w\d:#@%/;$()~_?\+-=\\\.&]*/([a-zA-Z0-9\r_-]+\."+bytes(extension,'ascii')+b")[?=a-zA-Z0-9_]*)")
+            pattern=re.compile(br"<[^>]+((https?):((//)|(\\\\))+[\w\d:#@%/;$()~_?\+-=\\\.&]*/([a-zA-Z0-9\r_-]+\."+bytes(extension,'ascii')+b")[?=a-zA-Z0-9_]*)[^>]*>")
             files = pattern.findall(self._readed)
             for file in files:
                 try:
@@ -162,6 +199,7 @@ class DownloadPage(object):
         try:
             opener=request.urlopen(self._url)
             self._readed= opener.read()
+            self._readed = self.refineBinaryLinks(self._readed)
         except error.HTTPError:
             self._content = ''
             self._readed =None
@@ -183,11 +221,9 @@ class DownloadPage(object):
             if decoding == 'gb2312':
                 decoding = 'gb18030'
             self._content = self._readed.decode(decoding)
-            self._content = self.refineLinks(self._content)
         except:
             self._content='<body><p><b>Cannot decode page content!（不能解码网页内容）</b></p><p>However, Page has been successfully received!（但是网页已获取）</p></body>'
 
-        self._readed = self.refineBinaryLinks(self._readed)
         self._savePage()
 
 
@@ -206,12 +242,14 @@ if __name__=='__main__':
 
     down=DownloadPage('http://www.cs.ucc.ie/~kieran/cs1106/home/html/cs1106_home.html')
     down.urlopen()
+    down.changeDirectory('D:\python爬虫教程\pythonCrawlers')
     down.savePage()
+    #download pdf files from the page
+    down.setFiletypes('pdf')
     down.saveAll()
 
-    #download pdf files from the page
-    # down.setFiletypes('pdf')
-    # down.downloadFiles()
+
+
 
     '''down.urlopen()
 
