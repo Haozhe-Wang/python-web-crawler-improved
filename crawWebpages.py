@@ -107,10 +107,11 @@ class DownloadPage(object):
                 f.write(buffer)
             f.close()'''
         for name,content in self._saves.items():
+            content=self.downloadAllToFolder(name,content)
+            self._saves[name]=content
             f = open(name + '.html', 'wb')
             f.write(content)
             f.close()
-            self.downloadAllToFolder(name)
 
     '''
     #convert every links to absolute url with http prefixed
@@ -159,16 +160,20 @@ class DownloadPage(object):
         return readed
     def changeDirectory(self,path):
         os.chdir(path)
-    def downloadAllToFolder(self,folderName):
+    def createDirectory(self,folderName):
         current = os.getcwd()
         folder = os.path.join(current, folderName)
         if not os.path.exists(folder):
             os.mkdir(folder)
+        return folder,current
+    def downloadAllToFolder(self,folderName,content):
+        folder,current=self.createDirectory(folderName)
         os.chdir(folder)
-        self.downloadFiles()
-        self.downloadCss()
-        self.downloadImages()
+        content,_=self.downloadFiles(content)
+        content=self.downloadCss(content)
+        content=self.downloadImages(content)
         os.chdir(current)
+        return content
 
     #disabale or enable javascript in html
     def setJavascript(self):
@@ -184,21 +189,60 @@ class DownloadPage(object):
 
             self._content=self._readed.decode(self._decoding)
 
-    def downloadCss(self):
-        pass
+    def downloadCss(self,content):
+        if self._retrive_css:
+            folder,current=self.createDirectory('StyleSheets')
+            os.chdir(folder)
+            pattern=re.compile(rb'''<\s*link [^>]*(rel[\s\n]*=[\s\n]*"[\s\n]*stylesheet[\s\n]*")?[^>]*href[\s\n]*=[\s\n]*"[\s\n]*([^>"\n]+)\n*"(?(1)[^>]*|[^>]*rel[\s\n]*=[\s\n]*"[\s\n]*stylesheet[\s\n]*"[^>]*)>''')
 
-    def downloadImages(self):
-        pass
+            def replace(match):
+                url=match.group(2).decode('ascii')
+                name=url.split('/')[-1]
+                try:
+                    self.download(url,name)
+                    path = os.path.join(folder, name)
+                    return match.group(0).replace(match.group(2),bytes(path,self._decoding))
+                except:
+                    return match.group(0)
+
+            content=pattern.sub(replace,content)
+            os.chdir(current)
+        return content
+
+
+    def downloadImages(self,content):
+        if self._retrive_images:
+            folder,current=self.createDirectory('Images')
+            os.chdir(folder)
+            pattern=re.compile(br'<\s*img [^>]*src[\s\n]*=[\s\n]*"[\s\n]*([^>"\n]+)[\s\n]*"[^>]*>')
+
+            def replace(match):
+                url=match.group(1).decode('ascii')
+                name=url.split('/')[-1]
+                try:
+                    self.download(url,name)
+                    path = os.path.join(folder, name)
+                    return match.group(0).replace(match.group(1),bytes(path,self._decoding))
+                except:
+                    return match.group(0)
+
+            content = pattern.sub(replace, content)
+            os.chdir(current)
+        return content
 
     #download every file which are given by the file extensions
-    def downloadFiles(self):
+    def downloadFiles(self,content):
         downloadresult={}
+        folder,current=self.createDirectory('Files')
+        os.chdir(folder)
         for extension in self._retrive_filetypes:
+            folderExtension,_=self.createDirectory(extension)
+            os.chdir(folderExtension)
             downloaded=0
             total=0
             NoLoad=[]
             pattern=re.compile(br"<[^>]+((https?):((//)|(\\\\))+[\w\d:#@%/;$()~_?\+-=\\\.&]*/([a-zA-Z0-9\r_-]+\."+bytes(extension,'ascii')+b")[?=a-zA-Z0-9_]*)[^>]*>")
-            files = pattern.findall(self._readed)
+            files = pattern.findall(content)
             for file in files:
                 try:
                     self.download(file[0].decode('ascii'),file[-1].decode('ascii'))
@@ -207,8 +251,10 @@ class DownloadPage(object):
                     NoLoad.append(file[0].decode('ascii'))
                 finally:
                     total+=1
+            os.chdir(folder)
             downloadresult[extension]=[downloaded,total,NoLoad]
-        return downloadresult
+        os.chdir(current)
+        return content,downloadresult
 
     def download(self,url,filename):
         testfile = request.URLopener()
@@ -280,14 +326,13 @@ if __name__=='__main__':
 
     down.savePage()
 
-    '''
+
     #download pdf files from the page
-    #down.setFiletypes('pdf')
-    '''
+    # down.setFiletypes('pdf')
+    down.setFiletypes('css')
+
 
     down.saveAll()
-
-
 
 
     '''down.urlopen()
