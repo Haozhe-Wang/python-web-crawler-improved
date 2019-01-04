@@ -9,6 +9,7 @@ class DownloadPage(object):
         # This will be storing binary content
         self._readed=None
         self._url=url
+        self._decoding=''
         self._content=''
         self._contentsPointer=-1
         self._contents=[]
@@ -18,6 +19,7 @@ class DownloadPage(object):
         self._retrive_images=True
         self._retrive_css=True
         self._remove_script=False
+        self._script_removed=False
 
     def setUrl(self,url):
         self._url=url
@@ -167,6 +169,21 @@ class DownloadPage(object):
         self.downloadCss()
         self.downloadImages()
         os.chdir(current)
+
+    #disabale or enable javascript in html
+    def setJavascript(self):
+        if self._remove_script != self._script_removed:
+            if self._remove_script and not self._script_removed:
+                pattern=re.compile(rb'(?<!<!--)(<\s*script[^>]*>(.|\n)*?<\s*/script\s*>)')
+                self._readed=pattern.sub(rb'<!-- (UNSCRIPTION) \1 -->',self._readed)
+                self._script_removed=True
+            else:
+                pattern = re.compile(b'<!--\s*\(UNSCRIPTION\) (<\s*script[^>]*>(.|\n)*?<\s*/script\s*>)\s*-->')
+                self._readed=pattern.sub(rb'\1',self._readed)
+                self._script_removed=False
+
+            self._content=self._readed.decode(self._decoding)
+
     def downloadCss(self):
         pass
 
@@ -175,20 +192,23 @@ class DownloadPage(object):
 
     #download every file which are given by the file extensions
     def downloadFiles(self):
-        downloads={}
+        downloadresult={}
         for extension in self._retrive_filetypes:
             downloaded=0
             total=0
+            NoLoad=[]
             pattern=re.compile(br"<[^>]+((https?):((//)|(\\\\))+[\w\d:#@%/;$()~_?\+-=\\\.&]*/([a-zA-Z0-9\r_-]+\."+bytes(extension,'ascii')+b")[?=a-zA-Z0-9_]*)[^>]*>")
             files = pattern.findall(self._readed)
             for file in files:
                 try:
                     self.download(file[0].decode('ascii'),file[-1].decode('ascii'))
                     downloaded += 1
+                except:
+                    NoLoad.append(file[0].decode('ascii'))
                 finally:
                     total+=1
-            downloads[extension]=[downloaded,total]
-        return downloads
+            downloadresult[extension]=[downloaded,total,NoLoad]
+        return downloadresult
 
     def download(self,url,filename):
         testfile = request.URLopener()
@@ -220,6 +240,7 @@ class DownloadPage(object):
             # As gb18030 has bigger character set, and works more properly
             if decoding == 'gb2312':
                 decoding = 'gb18030'
+            self._decoding=decoding
             self._content = self._readed.decode(decoding)
         except:
             self._content='<body><p><b>Cannot decode page content!（不能解码网页内容）</b></p><p>However, Page has been successfully received!（但是网页已获取）</p></body>'
@@ -240,12 +261,30 @@ class urlError(Exception):
 
 if __name__=='__main__':
 
-    down=DownloadPage('http://www.cs.ucc.ie/~kieran/cs1106/home/html/cs1106_home.html')
+    down=DownloadPage('https://www.51test.net/show/9169567.html')
     down.urlopen()
-    down.changeDirectory('D:\python爬虫教程\pythonCrawlers')
+
+    '''
+    #can remove javascript
+    down.setScriptRemovalTrue()
+    down.setJavascript()
+    down.setScriptRemovalFalse()
+    down.setJavascript()
+    '''
+
+    '''
+    # change downloading directory
+    # down.changeDirectory('D:\python爬虫教程\pythonCrawlers')
+    '''
+
+
     down.savePage()
+
+    '''
     #download pdf files from the page
-    down.setFiletypes('pdf')
+    #down.setFiletypes('pdf')
+    '''
+
     down.saveAll()
 
 
