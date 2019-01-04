@@ -170,8 +170,10 @@ class DownloadPage(object):
         folder,current=self.createDirectory(folderName)
         os.chdir(folder)
         content,_=self.downloadFiles(content)
-        content=self.downloadCss(content)
-        content=self.downloadImages(content)
+        #down load stylesheets
+        content=self.tagDownloadAndChangeLink(content,self._retrive_css,'StyleSheets',rb'<\s*link [^>]*(rel[\s\n]*=[\s\n]*"[\s\n]*stylesheet[\s\n]*")?[^>]*href[\s\n]*=[\s\n]*"[\s\n]*([^>"\n]+)\n*"(?(1)[^>]*|[^>]*rel[\s\n]*=[\s\n]*"[\s\n]*stylesheet[\s\n]*"[^>]*)>',2)
+        #down load all images
+        content = self.tagDownloadAndChangeLink(content,self._retrive_images,'Images',br'<\s*img [^>]*src[\s\n]*=[\s\n]*"[\s\n]*([^>"\n]+)[\s\n]*"[^>]*>',1)
         os.chdir(current)
         return content
 
@@ -189,19 +191,25 @@ class DownloadPage(object):
 
             self._content=self._readed.decode(self._decoding)
 
-    def downloadCss(self,content):
-        if self._retrive_css:
-            folder,current=self.createDirectory('StyleSheets')
+    #this function is used to download all linked files( which can be stylesheets, images and so on), and also this function will modify the links to local path
+    #content: is binary content of the page
+    #whether: specify if user want to download this particular document
+    #directoryName: specify the directory name to store the documents
+    #patternDescription: specify the pattern of the link(or tag) to match
+    #groupNo: specify the group for the link in order to replace the absolute link to the location of local path
+    def tagDownloadAndChangeLink(self,content,whether,directoryName,patternDescription,groupNO):
+        if whether:
+            folder,current=self.createDirectory(directoryName)
             os.chdir(folder)
-            pattern=re.compile(rb'''<\s*link [^>]*(rel[\s\n]*=[\s\n]*"[\s\n]*stylesheet[\s\n]*")?[^>]*href[\s\n]*=[\s\n]*"[\s\n]*([^>"\n]+)\n*"(?(1)[^>]*|[^>]*rel[\s\n]*=[\s\n]*"[\s\n]*stylesheet[\s\n]*"[^>]*)>''')
+            pattern=re.compile(patternDescription)
 
             def replace(match):
-                url=match.group(2).decode('ascii')
+                url=match.group(groupNO).decode('ascii')
                 name=url.split('/')[-1]
                 try:
                     self.download(url,name)
                     path = os.path.join(folder, name)
-                    return match.group(0).replace(match.group(2),bytes(path,self._decoding))
+                    return match.group(0).replace(match.group(groupNO),bytes(path,self._decoding))
                 except:
                     return match.group(0)
 
@@ -209,26 +217,6 @@ class DownloadPage(object):
             os.chdir(current)
         return content
 
-
-    def downloadImages(self,content):
-        if self._retrive_images:
-            folder,current=self.createDirectory('Images')
-            os.chdir(folder)
-            pattern=re.compile(br'<\s*img [^>]*src[\s\n]*=[\s\n]*"[\s\n]*([^>"\n]+)[\s\n]*"[^>]*>')
-
-            def replace(match):
-                url=match.group(1).decode('ascii')
-                name=url.split('/')[-1]
-                try:
-                    self.download(url,name)
-                    path = os.path.join(folder, name)
-                    return match.group(0).replace(match.group(1),bytes(path,self._decoding))
-                except:
-                    return match.group(0)
-
-            content = pattern.sub(replace, content)
-            os.chdir(current)
-        return content
 
     #download every file which are given by the file extensions
     def downloadFiles(self,content):
