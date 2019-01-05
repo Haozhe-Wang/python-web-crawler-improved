@@ -15,7 +15,7 @@ class DownloadPage(object):
         self._contents=[]
         self._saves={}
 
-        self._retrive_filetypes=[]
+        self._retrive_filetypes=set()
         self._retrive_images=True
         self._retrive_css=True
         self._remove_script=False
@@ -27,12 +27,18 @@ class DownloadPage(object):
         return self._url
     def getPage(self):
         return self._content
+    def setPage(self,content):
+        self._content=content
+        self._readed=bytes(self._content,self._decoding)
     def getSaves(self):
         return self._saves
 
     #add file types
     def setFiletypes(self,filetype):
-        self._retrive_filetypes.append(str(filetype))
+        self._retrive_filetypes.add(str(filetype))
+    def removeFiletypes(self,filetype):
+        if filetype in self._retrive_filetypes:
+            self._retrive_filetypes.remove(filetype)
 
     #set to download all images
     def setImageRetrivingTrue(self):
@@ -283,7 +289,7 @@ class DownloadPage(object):
 
 
     url=property(getUrl,setUrl)
-    content=property(getPage)
+    content=property(getPage,setPage)
     saves=property(getSaves)
 
 class NoServerFound(Exception):
@@ -295,7 +301,7 @@ class urlError(Exception):
 
 if __name__=='__main__':
 
-    down=DownloadPage('https://www.51test.net/show/9169567.html')
+    down=DownloadPage('https://www.ielts.org/about-the-test/sample-test-questions')
     down.urlopen()
 
     '''
@@ -317,7 +323,7 @@ if __name__=='__main__':
 
     #download pdf files from the page
     # down.setFiletypes('pdf')
-    down.setFiletypes('css')
+    down.setFiletypes('ashx')
 
 
     down.saveAll()
