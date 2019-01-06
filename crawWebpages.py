@@ -210,7 +210,7 @@ class DownloadPage(object):
             pattern=re.compile(patternDescription)
 
             def replace(match):
-                url=match.group(groupNO).decode('ascii')
+                url=match.group(groupNO).decode('utf-8')
                 name=url.split('/')[-1]
                 try:
                     self.download(url,name)
